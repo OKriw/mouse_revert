@@ -1,7 +1,7 @@
-#include "ntddk.h"
-#include "stdarg.h"
-#include "stdio.h"
-#include "ntddmou.h"
+#include <ntddk.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <ntddmou.h>
 
 #if DBG
 #define DbgPrint(arg) DbgPrint arg
@@ -9,36 +9,30 @@
 #define DbgPrint(arg)
 #endif
 
-
 //Global variables
 PDEVICE_OBJECT       MouseDevice;
 PDEVICE_OBJECT       HookDeviceObject;
 
 
-NTSTATUS MouseFilterIrpHandle( IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp );
-NTSTATUS MouseFilterIrpPassthrough(IN PDEVICE_OBJECT DeviceObject,IN PIRP Irp );
-NTSTATUS MyMouseFilterInit( IN PDRIVER_OBJECT DriverObject );
+NTSTATUS MouseFilterIrpHandle(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp);
+NTSTATUS MouseFilterIrpPassthrough(IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp);
+NTSTATUS MyMouseFilterInit(IN PDRIVER_OBJECT DriverObject);
 
 
 NTSTATUS DriverEntry(
     IN PDRIVER_OBJECT  DriverObject,
     IN PUNICODE_STRING RegistryPath )
 {
-    PDEVICE_OBJECT         deviceObject        = NULL;
+    PDEVICE_OBJECT         deviceObject = NULL;
     NTSTATUS               ntStatus;
     WCHAR                  deviceNameBuffer[]  = L"\\Device\\MyMouseFilter";
     UNICODE_STRING         deviceNameUnicodeString;
     WCHAR                  deviceLinkBuffer[]  = L"\\DosDevices\\MyMouseFilter";
     UNICODE_STRING         deviceLinkUnicodeString;
-	__debugbreak();
-    DbgPrint (("MyMouseFilter.SYS: entering DriverEntry\n"));
-
-    //
-    // Create our device.
-    //
-	    
-    RtlInitUnicodeString (&deviceNameUnicodeString,
-                          deviceNameBuffer );
+#ifdef DBG
+    DbgPrint ("MyMouseFilter.SYS: entering DriverEntry\n");
+#endif	    
+    RtlInitUnicodeString (&deviceNameUnicodeString, deviceNameBuffer);
     
 
  	 DriverObject->MajorFunction[IRP_MJ_READ]	    
@@ -53,8 +47,9 @@ NTSTATUS DriverEntry(
     return MyMouseFilterInit( DriverObject );
 }
 
-NTSTATUS MyMouseFilterInit( IN PDRIVER_OBJECT DriverObject )
-{    CCHAR		 ntNameBuffer[64];
+NTSTATUS MyMouseFilterInit(IN PDRIVER_OBJECT DriverObject)
+{   
+	CCHAR		 ntNameBuffer[64];
     STRING		 ntNameString;
     UNICODE_STRING       ntUnicodeString;
     NTSTATUS             status;
@@ -72,38 +67,36 @@ NTSTATUS MyMouseFilterInit( IN PDRIVER_OBJECT DriverObject )
 			     &HookDeviceObject );
 
     if( !NT_SUCCESS(status) ) {
-
-	 DbgPrint(("MyMouseFilter: Mouse hook failed to create device!\n"));
-
-	 RtlFreeUnicodeString( &ntUnicodeString );
-
-	 return STATUS_SUCCESS;
+#ifdef DBG
+		DbgPrint(("MyMouseFilter: Mouse hook failed to create device!\n"));
+#endif 
+		RtlFreeUnicodeString( &ntUnicodeString );
+		return status;
     }
 
     HookDeviceObject->Flags |= DO_BUFFERED_IO;
 
     status = IoAttachDevice( HookDeviceObject, &ntUnicodeString, &MouseDevice );
 
-    if( !NT_SUCCESS(status) ) {
+    if(!NT_SUCCESS(status) ) {
 
-	 DbgPrint(("MyMouseFilter: Connect with mouse failed!\n"));
-
-	 IoDeleteDevice( HookDeviceObject );
-
-	 RtlFreeUnicodeString( &ntUnicodeString );
-	
-	 return STATUS_SUCCESS;
+		DbgPrint(("MyMouseFilter: Connect with mouse failed!\n"));
+		IoDeleteDevice( HookDeviceObject );
+		RtlFreeUnicodeString( &ntUnicodeString );
+		return status;
     }
 
     RtlFreeUnicodeString( &ntUnicodeString );
-
-    DbgPrint(("Mouse connected to mouse device\n"));
-
-    return STATUS_SUCCESS;
+#ifdef DBG
+	DbgPrint(("Mouse connected to mouse device\n"));
+#endif
+	return status;
 }
 
-NTSTATUS MouseFilterIoCompletion( IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp,
-				IN PVOID Context )
+NTSTATUS MouseFilterIoCompletion( 
+	IN PDEVICE_OBJECT DeviceObject, 
+	IN PIRP Irp,
+	IN PVOID Context )
 {
     PIO_STACK_LOCATION        IrpSp;
     PMOUSE_INPUT_DATA      MouseData;
@@ -111,20 +104,19 @@ NTSTATUS MouseFilterIoCompletion( IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp,
     IrpSp = IoGetCurrentIrpStackLocation( Irp );
     if( NT_SUCCESS( Irp->IoStatus.Status ) ) {
 	
-  	MouseData = Irp->AssociatedIrp.SystemBuffer;
-
-	DbgPrint(("Got mouse Irp %s, LastX = %d, LastY = %d \n", ((MouseData->Flags == MOUSE_MOVE_RELATIVE) ? "Relative" : "_ABSOLUTE_"), MouseData->LastX, MouseData->LastY));
-
-	if( MouseData->Flags == MOUSE_MOVE_RELATIVE) {
-	//	DbgPrint(("Ralative"));
-	//	DbgPrint(("X=%d\n",MouseData->LastX));
+		MouseData = Irp->AssociatedIrp.SystemBuffer;
+#ifdef
+		DbgPrint(("Got mouse Irp %s, LastX = %d, LastY = %d \n", ((MouseData->Flags == MOUSE_MOVE_RELATIVE) ? "Relative" : "_ABSOLUTE_"), MouseData->LastX, MouseData->LastY));
+#endif
+	if(MouseData->Flags == MOUSE_MOVE_RELATIVE) {
+		
 		DbgPrint(("Y=%d\n",MouseData->LastY));
 		MouseData->LastX=-MouseData->LastX;
 		MouseData->LastY=-MouseData->LastY;
-
-       } 
-	  if( MouseData->Flags == MOUSE_MOVE_ABSOLUTE) {
-	//	DbgPrint(("Absolute"));
+	} 
+	  
+	if( MouseData->Flags == MOUSE_MOVE_ABSOLUTE) {
+		
 		MouseData->LastX = 0xFFFF - MouseData->LastX;
 		MouseData->LastY = 0xFFFF - MouseData->LastY;
        }  
@@ -134,23 +126,22 @@ NTSTATUS MouseFilterIoCompletion( IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp,
     if( Irp->PendingReturned ) {
 
         IoMarkIrpPending( Irp );
-
-    }
+	}
 
     return Irp->IoStatus.Status;
 }
 
 
-NTSTATUS MouseFilterIrpHandle( IN PDEVICE_OBJECT DeviceObject, IN PIRP Irp )
+NTSTATUS MouseFilterIrpHandle(
+	IN PDEVICE_OBJECT DeviceObject,
+	IN PIRP Irp )
 {
     PIO_STACK_LOCATION currentIrpStack = IoGetCurrentIrpStackLocation(Irp);
     PIO_STACK_LOCATION nextIrpStack    = IoGetNextIrpStackLocation(Irp);
 
     *nextIrpStack = *currentIrpStack;   
-
     IoSetCompletionRoutine( Irp, MouseFilterIoCompletion, DeviceObject, TRUE, TRUE, TRUE );
-	    
-    return IoCallDriver( MouseDevice, Irp );
+	return IoCallDriver( MouseDevice, Irp );
 }
 
 
@@ -161,21 +152,18 @@ NTSTATUS MouseFilterIrpPassthrough(
     PIO_STACK_LOCATION currentIrpStack = IoGetCurrentIrpStackLocation(Irp);
     PIO_STACK_LOCATION nextIrpStack    = IoGetNextIrpStackLocation(Irp);
 
-    Irp->IoStatus.Status      = STATUS_SUCCESS;
+    Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
 
 
    if( DeviceObject == HookDeviceObject ) {
-
-       *nextIrpStack = *currentIrpStack;
-
-       return IoCallDriver(MouseDevice, Irp );
+	
+		*nextIrpStack = *currentIrpStack;
+		return IoCallDriver(MouseDevice, Irp);
 
    } else {
-
-       return STATUS_SUCCESS;
-
-   }
-}
+		return STATUS_SUCCESS;
+	}
+};
 
 
